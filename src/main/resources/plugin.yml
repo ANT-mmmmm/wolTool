@@ -1,0 +1,27 @@
+name: WOL_tool
+version: 1.0
+main: asia.ant_cave.wol_tool.Wol_tool
+api-version: 1.21
+commands:
+  wol:
+    description: Send Wake-On-LAN command
+    usage: /wol [computer]
+    permission: wol.command.use
+  ping:
+    description: Ping an IP address
+    usage: /ping <ip>
+    permission: wol.ping.use
+  goto:
+    description: Manually trigger server wake-up and connect
+    usage: /goto
+    permission: wol.goto.use
+permissions:
+  wol.command.use:
+    description: Allows use of the /wol command
+    default: op
+  wol.ping.use:
+    description: Allows use of the /ping command
+    default: op
+  wol.goto.use:
+    description: Allows use of the /goto command
+    default: op
