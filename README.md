@@ -47,7 +47,7 @@ wolTool/
 4. ✏️ Edit `plugins/WOL/config.yml` to add your device information
 5. 🔁 Reload or restart the server
 
-### Configuration ([config.yml](file://E:\Users\Admin\Desktop\java_project\java_project\wol_tool\wolTool\src\main\resources\config.yml))
+### Configuration ([config.yml](./src/main/resources/config.yml))
 
 ```yaml
 # Config.yml content from your project
@@ -85,7 +85,6 @@ login-messages:
 
 ## 🧱 Development Standards
 
-- 📝 All public methods include complete Javadoc comments
 - 🧮 Time unit handling follows standard game tick conversion (20 ticks per second)
 - 🔄 Use BukkitScheduler to implement periodic tasks and delayed execution
 - 📦 Configuration access encapsulated in utility methods to improve testability
@@ -105,6 +104,13 @@ gradle build
 - JDK 21
 - SpigotMC 1.21.4 server
 - Network environment supporting Wake-on-LAN
+
+## 📧 Contact Information
+
+If you have any questions or suggestions about this plugin, please feel free to contact me via the following email address:
+
+📧 **Author Email**: [ANTmmmmm@outlook.com](mailto:ANTmmmmm@outlook.com)
+
 ---
 # 🌟WOL 工具 - Wake-on-LAN Minecraft 插件
 
@@ -154,7 +160,7 @@ wolTool/
 4. ✏️ 编辑 `plugins/WOL/config.yml` 添加你的设备信息
 5. 🔁 重新加载或重启服务器
 
-### 配置说明 ([config.yml](file://E:\Users\Admin\Desktop\java_project\java_project\wol_tool\wolTool\src\main\resources\config.yml))
+### 配置说明 ([config.yml](./src/main/resources/config.yml))
 
 ```
 yaml
@@ -182,7 +188,6 @@ login-messages:
 
 ## 🧱 开发规范
 
-- 📝 所有公共方法都包含完整的 Javadoc 注释
 - 🧮 时间单位处理遵循标准游戏刻换算（每秒 20 ticks）
 - 🔄 使用 BukkitScheduler 实现周期性任务和延迟执行
 - 📦 配置访问封装在工具方法中以提高可测试性
@@ -202,3 +207,10 @@ gradle build
 - JDK 21
 - SpigotMC 1.21.4 服务端
 - 支持 Wake-on-LAN 的网络环境
+
+
+## 📧 联系方式
+
+如果对本插件有任何疑问或建议，欢迎通过以下邮箱与我联系：
+
+📧 **作者邮箱**: [ANTmmmmm@outlook.com](mailto:ANTmmmmm@outlook.com)
