@@ -1,6 +1,6 @@
 name: WOL_tool
 version: 1.0
-main: asia.ant_cave.wol_tool.Wol_tool
+main: asia.ant_cave.wol_tool.WolTool
 api-version: 1.21
 commands:
   wol:
@@ -15,6 +15,11 @@ commands:
     description: Manually trigger server wake-up and connect
     usage: /goto
     permission: wol.goto.use
+  reload:
+    description: Reload the config file
+    usage: /reload
+    permission: wol.reload.use
+
 permissions:
   wol.command.use:
     description: Allows use of the /wol command
@@ -24,4 +29,7 @@ permissions:
     default: op
   wol.goto.use:
     description: Allows use of the /goto command
+    default: op
+  wol.reload.use:
+    description: Allows use of the /reload command
     default: op
