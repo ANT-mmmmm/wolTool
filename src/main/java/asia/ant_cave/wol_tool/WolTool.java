@@ -1,5 +1,7 @@
 package asia.ant_cave.wol_tool;
 
+import com.google.common.io.ByteArrayDataInput;
+import com.google.common.io.ByteStreams;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
@@ -10,18 +12,21 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.messaging.PluginMessageListener;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public final class WolTool extends JavaPlugin {
+public final class WolTool extends JavaPlugin implements Listener {
     private FileConfiguration pluginConfig;
     private static WolTool plugin;
 
@@ -48,7 +53,16 @@ public final class WolTool extends JavaPlugin {
 
         // 事件监听器注册
         getServer().getPluginManager().registerEvents(new PlayerJoinListener(), this);
+
+
+        // 获取插件管理器并注册事件监听器
+        PluginManager pluginManager = Bukkit.getServer().getPluginManager();
+        pluginManager.registerEvents(this, this);
+
+        // 注册BungeeCord通信通道
+        this.getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
     }
+
 
     @Override
     public void onDisable() {
@@ -80,6 +94,15 @@ public final class WolTool extends JavaPlugin {
             return true;
         }
 
+        if (command.getName().equalsIgnoreCase("reload")) {
+            reloadConfig();
+            pluginConfig = this.getConfig();
+            sender.sendMessage(ChatColor.GREEN + "Config reloaded.");
+        }
+
+        if (command.getName().equalsIgnoreCase("send")) {
+
+        }
         return false;
     }
 
@@ -113,8 +136,8 @@ public final class WolTool extends JavaPlugin {
     // 处理Ping命令
     private void handlePingCommand(CommandSender sender, String[] args) {
         String ipAddress = args.length < 1
-            ? pluginConfig.getString("ip-addresses." + pluginConfig.getString("default_computer"))
-            : args[0];
+                ? pluginConfig.getString("ip-addresses." + pluginConfig.getString("default_computer"))
+                : args[0];
 
         String finalIpAddress = ipAddress;
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
@@ -164,24 +187,16 @@ public final class WolTool extends JavaPlugin {
             boolean isOnline = pingIpAddress(ipAddress);
 
             Bukkit.getScheduler().runTask(this, () -> {
-                if (isConnectPluginLoaded()) {
-                    if (isOnline) {
-                        connectPlayers(player, defaultComputer);
-                    } else {
-                        sendLoginMessages(player);
-                        startMachineConnectionCountdown(defaultComputer);
-                    }
+                if (isOnline) {
+                    connectPlayers(player, defaultComputer);
                 } else {
-                    logMissingDependencyAndKick(player);
+                    sendLoginMessages(player);
+                    startMachineConnectionCountdown(defaultComputer);
                 }
             });
         });
     }
 
-    // 检查插件依赖
-    private boolean isConnectPluginLoaded() {
-        return Bukkit.getServer().getPluginManager().getPlugin("Connect") != null;
-    }
 
     // 执行Ping检查
     private boolean pingIpAddress(String ipAddress) {
@@ -206,7 +221,7 @@ public final class WolTool extends JavaPlugin {
             }
         } catch (IOException | InterruptedException e) {
             Bukkit.getLogger().log(java.util.logging.Level.SEVERE,
-                ChatColor.RED + "Ping execution error: " + e.getMessage(), e);
+                    ChatColor.RED + "Ping execution error: " + e.getMessage(), e);
             return false;
         }
         return false;
@@ -246,7 +261,7 @@ public final class WolTool extends JavaPlugin {
                     for (Player player : Bukkit.getOnlinePlayers()) {
                         sendCountdownTitle(player, countdown.get());
                         sendWakeOnLanCommand(player, machineName,
-                            pluginConfig.getString("mac-addresses." + machineName));
+                                pluginConfig.getString("mac-addresses." + machineName));
                         spawnParticles(player);
                     }
                 });
@@ -260,8 +275,7 @@ public final class WolTool extends JavaPlugin {
     // 发送玩家连接命令
     private void connectPlayers(Player player, String computer) {
         for (Player player_ : Bukkit.getOnlinePlayers()) {
-            Bukkit.dispatchCommand(Bukkit.getServer().getConsoleSender(),
-                "connect " + player_.getName() + " " + computer);
+            sendToServer(player_, computer);
             player.sendMessage(ChatColor.GREEN + "服务器已就绪！");
         }
     }
@@ -269,8 +283,7 @@ public final class WolTool extends JavaPlugin {
     // 玩家连接方法
     private void connectPlayer(Player player, String machineName, long delay) {
         Bukkit.getScheduler().runTaskLater(this, () -> {
-            Bukkit.dispatchCommand(Bukkit.getServer().getConsoleSender(),
-                "connect " + player.getName() + " " + machineName);
+            sendToServer(player, machineName);
         }, delay);
     }
 
@@ -296,8 +309,8 @@ public final class WolTool extends JavaPlugin {
     // 生成粒子效果
     private void spawnParticles(Player player) {
         ChatColor[] colors = {
-            ChatColor.RED, ChatColor.GOLD, ChatColor.YELLOW,
-            ChatColor.GREEN, ChatColor.BLUE, ChatColor.LIGHT_PURPLE
+                ChatColor.RED, ChatColor.GOLD, ChatColor.YELLOW,
+                ChatColor.GREEN, ChatColor.BLUE, ChatColor.LIGHT_PURPLE
         };
         ChatColor color = colors[new java.util.Random().nextInt(colors.length)];
 
@@ -305,13 +318,14 @@ public final class WolTool extends JavaPlugin {
 
         try {
             Color particleColor = Color.fromRGB(
-                new java.util.Random().nextInt(256),
-                new java.util.Random().nextInt(256),
-                new java.util.Random().nextInt(256)
+                    new java.util.Random().nextInt(256),
+                    new java.util.Random().nextInt(256),
+                    new java.util.Random().nextInt(256)
             );
             player.spawnParticle(Particle.DUST, player.getLocation().add(0, 1, 0),
-                30, 0.5F, 0.5F, 0.5F, 0.1F, new Particle.DustOptions(particleColor, 1));
-        } catch (Exception ignored) {}
+                    30, 0.5F, 0.5F, 0.5F, 0.1F, new Particle.DustOptions(particleColor, 1));
+        } catch (Exception ignored) {
+        }
     }
 
     // 记录日志并踢出玩家
@@ -350,7 +364,34 @@ public final class WolTool extends JavaPlugin {
             }
         } catch (Exception e) {
             Bukkit.getLogger().log(java.util.logging.Level.SEVERE,
-                ChatColor.RED + "Error while sending WOL command: " + e.getMessage(), e);
+                    ChatColor.RED + "Error while sending WOL command: " + e.getMessage(), e);
         }
     }
+
+
+    /**
+     * 将指定玩家发送到目标服务器
+     *
+     * @param player 要发送的玩家
+     * @param targetServer 目标服务器名称
+     */
+    // 在类中定义常量
+    private static final String BUNGEECORD_COMMAND_CONNECT = "Connect";
+
+    public static void sendToServer(Player player, String targetServer) {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        try (DataOutputStream dataOutputStream = new DataOutputStream(byteArrayOutputStream)) {
+            // 写入BungeeCord指令类型
+            dataOutputStream.writeUTF(BUNGEECORD_COMMAND_CONNECT);
+            // 写入目标服务器名称
+            dataOutputStream.writeUTF(targetServer);
+        } catch (IOException e) {
+            Bukkit.getLogger().log(java.util.logging.Level.SEVERE,
+                    ChatColor.RED + "发送连接命令时发生IO异常: " + e.getMessage(), e);
+        }
+
+        // 发送插件消息到指定服务器
+        player.sendPluginMessage(plugin, "BungeeCord", byteArrayOutputStream.toByteArray());
+    }
+
 }

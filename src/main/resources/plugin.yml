@@ -19,6 +19,10 @@ commands:
     description: Reload the config file
     usage: /reload
     permission: wol.reload.use
+  send:
+    description: Send a player to another server
+    usage: /send <player> <server>
+    permission: wol.send.use
 
 permissions:
   wol.command.use:
@@ -32,4 +36,7 @@ permissions:
     default: op
   wol.reload.use:
     description: Allows use of the /reload command
+    default: op
+  wol.send.use:
+    description: Allows use of the /send command
     default: op
