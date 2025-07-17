@@ -1,5 +1,5 @@
 name: WOL_tool
-version: 1.0
+version: 1.1
 main: asia.ant_cave.wol_tool.WolTool
 api-version: 1.21
 commands:
