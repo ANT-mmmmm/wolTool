@@ -1,11 +1,6 @@
 package asia.ant_cave.wol_tool;
 
-import com.google.common.io.ByteArrayDataInput;
-import com.google.common.io.ByteStreams;
-import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
-import org.bukkit.Color;
-import org.bukkit.Particle;
+import org.bukkit.*;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -14,16 +9,12 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.*;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class WolTool extends JavaPlugin implements Listener {
@@ -31,8 +22,7 @@ public final class WolTool extends JavaPlugin implements Listener {
     private static WolTool plugin;
 
     // 常量定义
-    private static final long DELAY_60_TICKS = 60L;
-    private static final long DELAY_20_TICKS = 20L;
+    private static final long CONNECT_DELAY = 20*10L;
     private static final int PING_TIMEOUT_DEFAULT = 200;
     private static final String DEFAULT_IP = "127.0.0.1";
 
@@ -228,69 +218,153 @@ public final class WolTool extends JavaPlugin implements Listener {
     }
 
     // 倒计时连接服务器
+    /**
+     * 启动机器连接倒计时并定期检查服务器状态
+     * 流程：
+     * 1. 初始化倒计时和任务调度器
+     * 2. 每隔 CONNECT_DELAY 时间 ping 一次目标 IP
+     * 3. 如果服务器在线：
+     *    - 向所有玩家发送准备消息
+     *    - 调用 connectPlayer 开始连接流程
+     *    - 取消定时任务
+     * 4. 如果倒计时结束仍未上线：
+     *    - 强制执行连接操作
+     *    - 发送提示信息
+     *    - 取消定时任务
+     * 5. 如果仍在等待中：
+     *    - 发送倒计时标题
+     *    - 发送 WOL 唤醒命令
+     *    - 生成粒子效果
+     *    - 倒计时减一
+     *
+     * @param machineName 目标机器名称，用于查找配置中的 IP 和 MAC 地址
+     */
     private void startMachineConnectionCountdown(String machineName) {
+        // 获取 Bukkit 的调度器，用于创建定时任务
         BukkitScheduler scheduler = Bukkit.getScheduler();
+        
+        // 设置初始倒计时为 60 秒
         AtomicInteger countdown = new AtomicInteger(60);
 
+        // 使用数组来保存任务实例以便在任务内部取消它
         final BukkitTask[] taskInstance = new BukkitTask[1];
+
+        // 创建异步的 Runnable 任务
         Runnable task = () -> {
+            // 获取目标机器的 IP 地址
             String ipAddress = pluginConfig.getString("ip-addresses." + machineName);
+            
+            // 检查 IP 是否在线
             boolean isOnline = pingIpAddress(ipAddress);
 
+            // 如果服务器已上线
             if (isOnline) {
+                // 切换回主线程执行以下操作
                 Bukkit.getScheduler().runTask(WolTool.this, () -> {
+                    // 遍历所有在线玩家
                     for (Player player : Bukkit.getOnlinePlayers()) {
-                        connectPlayer(player, machineName, DELAY_60_TICKS);
+                        // 连接玩家到目标服务器
+                        connectPlayer(player, machineName, CONNECT_DELAY);
+                        // 发送就绪消息
                         sendReadyMessages(player);
                     }
+                    // 如果任务存在则取消它
                     if (taskInstance[0] != null) taskInstance[0].cancel();
                 });
                 return;
             }
 
+            // 如果倒计时结束
             if (countdown.get() <= 0) {
+                // 切换回主线程执行以下操作
                 Bukkit.getScheduler().runTask(WolTool.this, () -> {
+                    // 遍历所有在线玩家
                     for (Player player : Bukkit.getOnlinePlayers()) {
-                        connectPlayer(player, machineName, DELAY_20_TICKS);
+                        // 强制连接玩家到目标服务器
+                        connectPlayer(player, machineName, CONNECT_DELAY);
+                        // 发送强制连接提示
                         player.sendMessage(ChatColor.YELLOW + "倒计时结束，强制连接到服务器");
                     }
+                    // 如果任务存在则取消它
                     if (taskInstance[0] != null) taskInstance[0].cancel();
                 });
             } else {
+                // 如果仍在等待中，切换回主线程执行以下操作
                 Bukkit.getScheduler().runTask(WolTool.this, () -> {
+                    // 遍历所有在线玩家
                     for (Player player : Bukkit.getOnlinePlayers()) {
+                        // 发送倒计时标题
                         sendCountdownTitle(player, countdown.get());
+                        // 发送 WOL 唤醒命令
                         sendWakeOnLanCommand(player, machineName,
                                 pluginConfig.getString("mac-addresses." + machineName));
+                        // 生成粒子效果
                         spawnParticles(player);
                     }
                 });
+                // 倒计时减一
                 countdown.getAndDecrement();
             }
         };
 
-        taskInstance[0] = scheduler.runTaskTimerAsynchronously(this, task, 0L, DELAY_20_TICKS);
+        // 使用异步调度器启动定时任务，每 CONNECT_DELAY ticks 执行一次
+        taskInstance[0] = scheduler.runTaskTimerAsynchronously(this, task, 0L, 20L);
     }
 
     // 发送玩家连接命令
     private void connectPlayers(Player player, String computer) {
         for (Player player_ : Bukkit.getOnlinePlayers()) {
-            sendToServer(player_, computer);
+            connectPlayer(player, computer,  CONNECT_DELAY);
             player.sendMessage(ChatColor.GREEN + "服务器已就绪！");
         }
     }
 
     // 玩家连接方法
+    private static final long TICKS_PER_SECOND = 20L;  // 符合常量规范
+    private static final long DELAY_TASK_INTERVAL = TICKS_PER_SECOND * 1;  // 每两秒执行一次
+
+    /**
+     * 连接玩家到目标服务器，带倒计时提示、粒子效果和延迟执行
+     *
+     * @param player      要连接的玩家
+     * @param machineName 目标服务器名称
+     * @param delay       延迟时间（以 tick 为单位）
+     */
     private void connectPlayer(Player player, String machineName, long delay) {
+        // 将延迟时间从 tick 转换为秒
+        long totalSeconds = delay / TICKS_PER_SECOND;
+
+        // 创建一个final数组来保存totalSeconds值，以便在lambda表达式中使用
+        final long[] finalTotalSeconds = { totalSeconds };
+
+        // 创建一个定时任务，每秒更新一次倒计时标题
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (finalTotalSeconds[0] >= 0) {
+                // 发送倒计时标题给玩家
+                player.sendTitle("§a连接将在 §d" + finalTotalSeconds[0] + "秒 §a后建立", "§4请勿退出", 0, (int) DELAY_TASK_INTERVAL, 0);
+
+                // 在倒计时期间生成粒子效果
+                spawnParticles(player);
+
+                // 在最后一秒播放音效
+                if (finalTotalSeconds[0] == 1) {
+                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
+                }
+
+                finalTotalSeconds[0]--;  // 减少剩余秒数
+            }
+        }, 0L, DELAY_TASK_INTERVAL);  // 每秒执行一次
+
+        // 在指定延迟后执行连接操作
         Bukkit.getScheduler().runTaskLater(this, () -> {
-            sendToServer(player, machineName);
-        }, delay);
+            sendToServer(player, machineName);  // 将玩家发送到目标服务器
+        }, delay - TICKS_PER_SECOND);  // 确保在倒计时结束前执行
     }
+
 
     // 发送准备消息
     private void sendReadyMessages(Player player) {
         player.sendMessage(ChatColor.GREEN + "服务器已就绪！");
-        player.sendMessage(ChatColor.YELLOW + "倒计时开始：5 秒后连接...");
     }
 
     // 发送登录消息
@@ -328,11 +402,7 @@ public final class WolTool extends JavaPlugin implements Listener {
         }
     }
 
-    // 记录日志并踢出玩家
-    private void logMissingDependencyAndKick(Player player) {
-        Bukkit.getLogger().warning("Connect plugin not found. Cannot execute /connect.");
-        player.kickPlayer("服务器缺少必要插件依赖。");
-    }
+
 
     // 玩家加入监听器
     public class PlayerJoinListener implements Listener {
@@ -342,7 +412,7 @@ public final class WolTool extends JavaPlugin implements Listener {
 
             Bukkit.getScheduler().runTaskLater(WolTool.this, () -> {
                 player.sendTitle("", "等待连接到服务器", 2, 20, 2);
-            }, DELAY_20_TICKS);
+            }, CONNECT_DELAY);
 
             if (pluginConfig.getBoolean("autowake", false)) {
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "goto " + event.getPlayer().getName());
@@ -393,5 +463,6 @@ public final class WolTool extends JavaPlugin implements Listener {
         // 发送插件消息到指定服务器
         player.sendPluginMessage(plugin, "BungeeCord", byteArrayOutputStream.toByteArray());
     }
+
 
 }
