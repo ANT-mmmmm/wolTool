@@ -341,7 +341,7 @@ public final class WolTool extends JavaPlugin implements Listener {
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             if (finalTotalSeconds[0] >= 0) {
                 // 发送倒计时标题给玩家
-                player.sendTitle("§a连接将在 §d" + finalTotalSeconds[0] + "秒 §a后建立", "§4请勿退出", 0, (int) DELAY_TASK_INTERVAL, 0);
+                player.sendTitle("§a连接将在 §d" + finalTotalSeconds[0] + "秒 §6后建立", "§a稍安勿躁 请勿退出", 0, (int) DELAY_TASK_INTERVAL, 0);
 
                 // 在倒计时期间生成粒子效果
                 spawnParticles(player);
